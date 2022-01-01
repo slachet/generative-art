@@ -1,2 +1,5 @@
 - [Silk Interactive Generative Art](http://weavesilk.com/)
 - [Acrylicode's drawing tool](https://www.acrylicode.com/acrylicodes-drawing-tool/)
+- [Online Fractal Generator By Functions](http://usefuljs.net/fractals/)
+- [Science vs Magic - Fractal maker](https://sciencevsmagic.net/fractal/)
+- [Fractal Terrain Generator](http://qiao.github.io/fractal-terrain-generator/demo/)
