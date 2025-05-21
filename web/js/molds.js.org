@@ -1,0 +1,142 @@
+class Mold {
+  constructor() {
+    // Mold variables
+    this.x = random(width);
+    this.y = random(height);
+    this.r = 2; // Increased radius for better visibility
+    
+    this.heading = random(360);
+    this.vx = cos(this.heading);
+    this.vy = sin(this.heading);
+    this.rotAngle = 45;
+    
+    // Sensor variables
+    this.rSensorPos = createVector(0, 0);
+    this.lSensorPos = createVector(0, 0);
+    this.fSensorPos = createVector(0, 0);
+    this.sensorAngle = 45;
+    this.sensorDist = 10;
+    
+    // Color
+    this.color = color(255, 255, 255, 150); // Slightly transparent white
+  }
+  
+  update() {   
+    this.vx = cos(this.heading);
+    this.vy = sin(this.heading);
+    
+    // Using % Modulo expression to wrap around the canvas
+    this.x = (this.x + this.vx + width) % width;
+    this.y = (this.y + this.vy + height) % height;
+    
+    // Get 3 sensor positions based on current position and heading
+    this.getSensorPos(this.rSensorPos, this.heading + this.sensorAngle);
+    this.getSensorPos(this.lSensorPos, this.heading - this.sensorAngle);
+    this.getSensorPos(this.fSensorPos, this.heading);
+  
+    // Get color values from sensor positions
+    let r = this.getPixelValue(this.rSensorPos.x, this.rSensorPos.y);
+    let l = this.getPixelValue(this.lSensorPos.x, this.lSensorPos.y);
+    let f = this.getPixelValue(this.fSensorPos.x, this.fSensorPos.y);
+    
+    // Compare values to determine movement 
+    if (f > l && f > r) {
+      this.heading += 0;
+    } else if (f < l && f < r) {
+      if (random(1) < 0.5) {
+        this.heading += this.rotAngle;
+      } else {
+        this.heading -= this.rotAngle;
+      }
+    } else if (l > r) {
+      this.heading -= this.rotAngle;
+    } else if (r > l) {
+      this.heading += this.rotAngle;
+    }
+  }
+  
+  getPixelValue(x, y) {
+    x = constrain(floor(x), 0, width-1);
+    y = constrain(floor(y), 0, height-1);
+    
+    if (pixels) {
+      let d = pixelDensity();
+      let index = 4 * ((y * width) + x) * d;
+      
+      if (index >= 0 && index < pixels.length) {
+        return pixels[index];
+      }
+    }
+    return 0;
+  }
+  
+  display() {
+    noStroke();
+    fill(this.color);
+    ellipse(this.x, this.y, this.r*2, this.r*2);
+  }
+  
+  getSensorPos(sensor, angle) {
+    sensor.x = (this.x + this.sensorDist*cos(angle) + width) % width;
+    sensor.y = (this.y + this.sensorDist*sin(angle) + height) % height;
+  }
+}
+
+let molds = [];
+let num = 2000; // Number of molds
+let debugMode = false; // Set to true to see sensor positions
+
+function setup() {
+  console.log("Setting up canvas...");
+  let canvas = createCanvas(windowWidth, windowHeight);
+  canvas.parent("canvas-container");
+  angleMode(DEGREES);
+  
+  // Initialize with a black background
+  background(0);
+  
+  // Create molds
+  console.log("Creating molds...");
+  for (let i = 0; i < num; i++) {
+    molds.push(new Mold());
+  }
+  
+  console.log("Setup complete!");
+}
+
+function draw() {
+  console.log("Drawing frame, # of molds:", molds.length);
+  
+  // Semi-transparent background for fading effect
+  fill(0, 10);
+  noStroke();
+  rect(0, 0, width, height);
+  
+  // Load pixels for analysis
+  loadPixels();
+  
+  // Update and display molds
+  for (let i = 0; i < molds.length; i++) {
+    molds[i].update();
+    molds[i].display();
+  }
+  
+  // Debug visualization
+  if (debugMode && frameCount % 30 === 0) {
+    console.log("Current canvas size:", width, "x", height);
+    console.log("First mold position:", molds[0].x, molds[0].y);
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  background(0); // Clear the canvas on resize
+}
+
+// Toggle debug mode with 'd' key
+function keyPressed() {
+  if (key === 'd' || key === 'D') {
+    debugMode = !debugMode;
+    console.log("Debug mode:", debugMode);
+  }
+}
